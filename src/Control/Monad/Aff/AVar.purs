@@ -16,15 +16,13 @@ module Control.Monad.Aff.AVar
 
 import Prelude
 
-import Control.Monad.Aff (Aff, nonCanceler)
-import Control.Monad.Aff.Internal (AVar) as Exports
+import Control.Monad.Aff (Aff, mkCanceler, nonCanceler)
 import Control.Monad.Aff.Internal (AVBox, AVar, _killVar, _putVar, _takeVar, _peekVar, _makeVar, _tryTakeVar, _tryPeekVar)
+import Control.Monad.Aff.Internal (AVar) as Exports
 import Control.Monad.Eff (kind Effect)
-import Control.Monad.Eff.Exception (Error())
-
-import Data.Function.Uncurried (runFn4, runFn3, runFn2)
+import Control.Monad.Eff.Exception (Error)
+import Data.Function.Uncurried (runFn4, runFn3)
 import Data.Maybe (Maybe(..))
-
 import Unsafe.Coerce (unsafeCoerce)
 
 foreign import data AVAR :: Effect
@@ -44,7 +42,7 @@ makeVar' a = do
 
 -- | Takes the next value from the asynchronous avar.
 takeVar :: forall e a. AVar a -> AffAVar e a
-takeVar q = fromAVBox $ runFn2 _takeVar nonCanceler q
+takeVar q = fromAVBox $ runFn3 _takeVar nonCanceler mkCanceler q
 
 -- | A variant of `takeVar` which return immediately if the asynchronous avar
 -- | was empty. Nothing if the avar empty and `Just a` if the avar have contents `a`.
@@ -53,7 +51,7 @@ tryTakeVar q = fromAVBox $ runFn4 _tryTakeVar Nothing Just nonCanceler q
 
 -- | Reads a value from the asynchronous var but does not consume it.
 peekVar :: forall e a. AVar a -> AffAVar e a
-peekVar q = fromAVBox $ runFn2 _peekVar nonCanceler q
+peekVar q = fromAVBox $ runFn3 _peekVar nonCanceler mkCanceler q
 
 -- | A variant of `peekVar` which return immediately when the asynchronous avar
 -- | was empty. Nothing if the avar empty and `Just a` if the avar have contents `a`.
@@ -63,7 +61,7 @@ tryPeekVar q = fromAVBox $ runFn4 _tryPeekVar Nothing Just nonCanceler q
 -- | Puts a new value into the asynchronous avar. If the avar has
 -- | been killed, this will result in an error.
 putVar :: forall e a. AVar a -> a -> AffAVar e Unit
-putVar q a = fromAVBox $ runFn3 _putVar nonCanceler q a
+putVar q a = fromAVBox $ runFn4 _putVar nonCanceler mkCanceler q a
 
 -- | Modifies the value at the head of the avar (will suspend until one is available).
 modifyVar :: forall e a. (a -> a) -> AVar a -> AffAVar e Unit

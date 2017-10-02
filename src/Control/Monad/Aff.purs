@@ -15,6 +15,7 @@ module Control.Monad.Aff
   , makeAff
   , makeAff'
   , nonCanceler
+  , mkCanceler
   , runAff
   , ParAff(..)
   ) where
@@ -32,15 +33,13 @@ import Control.Monad.Rec.Class (class MonadRec, Step(..))
 import Control.MonadPlus (class MonadZero, class MonadPlus)
 import Control.Parallel (class Parallel)
 import Control.Plus (class Plus, empty)
-
 import Data.Either (Either(..), either)
 import Data.Foldable (class Foldable, foldl)
-import Data.Function.Uncurried (Fn2, Fn3, runFn2, runFn3)
+import Data.Function.Uncurried (Fn2, Fn3, runFn2, runFn3, runFn4)
 import Data.Monoid (class Monoid, mempty)
 import Data.Newtype (class Newtype)
 import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple (Tuple(..), fst, snd)
-
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | An asynchronous computation with effects `e`. The computation either
@@ -59,6 +58,9 @@ type PureAff a = forall e. Aff e a
 -- | in such cases the flag indicates whether any part of the computation was
 -- | successfully canceled. The flag should not be used for communication.
 newtype Canceler e = Canceler (Error -> Aff e Boolean)
+
+mkCanceler :: ∀ e. (Error -> Aff e Boolean) -> Canceler e
+mkCanceler = Canceler
 
 -- | Unwraps the canceler function from the newtype that wraps it.
 cancel :: forall e. Canceler e -> Error -> Aff e Boolean
@@ -274,10 +276,10 @@ makeVar :: forall e a. Aff e (AVar a)
 makeVar = fromAVBox $ _makeVar nonCanceler
 
 takeVar :: forall e a. AVar a -> Aff e a
-takeVar q = fromAVBox $ runFn2 _takeVar nonCanceler q
+takeVar q = fromAVBox $ runFn3 _takeVar nonCanceler mkCanceler q
 
 putVar :: forall e a. AVar a -> a -> Aff e Unit
-putVar q a = fromAVBox $ runFn3 _putVar nonCanceler q a
+putVar q a = fromAVBox $ runFn4 _putVar nonCanceler mkCanceler q a
 
 killVar :: forall e a. AVar a -> Error -> Aff e Unit
 killVar q e = fromAVBox $ runFn3 _killVar nonCanceler q e

@@ -5,20 +5,41 @@ exports._makeVar = function (nonCanceler) {
     success({
       consumers: [],
       producers: [],
-      error: undefined
+      error: undefined,
+      freshId: 0
     });
     return nonCanceler;
   };
 };
 
-exports._takeVar = function (nonCanceler, avar) {
+exports._takeVar = function (nonCanceler, mkCanceler, avar) {
   return function (success, error) {
     if (avar.error !== undefined) {
       error(avar.error);
     } else if (avar.producers.length > 0) {
       avar.producers.shift()(success, error);
     } else {
-      avar.consumers.push({ peek: false, success: success, error: error });
+      var id = avar.freshId++;
+      avar.consumers.push({ peek: false, success: success, error: error, id: id });
+      return mkCanceler(function(error) {
+        return function() {
+          if (!avar.consumers) return false;
+
+          var ix;
+          for (var i = 0; i < avar.consumers.length; i++) {
+            if (avar.consumers[i].id === id) {
+              ix = i;
+              break;
+            }
+          }
+
+          if (ix != null) {
+            avar.consumers.splice(ix, 1);
+          }
+
+          return false;
+        };
+      });
     }
 
     return nonCanceler;
@@ -40,14 +61,34 @@ exports._tryTakeVar = function (nothing, just, nonCanceler, avar) {
   };
 };
 
-exports._peekVar = function (nonCanceler, avar) {
+exports._peekVar = function (nonCanceler, mkCanceler, avar) {
   return function (success, error) {
     if (avar.error !== undefined) {
       error(avar.error);
     } else if (avar.producers.length > 0) {
       avar.producers[0](success, error);
     } else {
-      avar.consumers.push({ peek: true, success: success, error: error });
+      var id = avar.freshId++;
+      avar.consumers.push({ peek: true, success: success, error: error, id: id });
+      return mkCanceler(function(error) {
+        return function() {
+          if (!avar.consumers) return false;
+
+          var ix;
+          for (var i = 0; i < avar.consumers.length; i++) {
+            if (avar.consumers[i].id === id) {
+              ix = i;
+              break;
+            }
+          }
+
+          if (ix != null) {
+            avar.consumers.splice(ix, 1);
+          }
+
+          return false;
+        };
+      });
     }
     return nonCanceler;
   };
@@ -68,7 +109,7 @@ exports._tryPeekVar = function (nothing, just, nonCanceler, avar) {
   };
 };
 
-exports._putVar = function (nonCanceler, avar, a) {
+exports._putVar = function (nonCanceler, mkCanceler, avar, a) {
   return function (success, error) {
     if (avar.error !== undefined) {
       error(avar.error);
